@@ -1,5 +1,5 @@
-recursive-include pretix_vacc_utils/static *
-recursive-include pretix_vacc_utils/templates *
-recursive-include pretix_vacc_utils/locale *
+recursive-include pretix_vacc_autosched/static *
+recursive-include pretix_vacc_autosched/templates *
+recursive-include pretix_vacc_autosched/locale *
 include LICENSE
 exclude .gitlab-ci.yml

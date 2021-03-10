@@ -9,13 +9,13 @@ __version__ = "1.0.0"
 
 
 class PluginApp(PluginConfig):
-    name = "pretix_vacc_utils"
-    verbose_name = "Vaccination Utilities"
+    name = "pretix_vacc_autosched"
+    verbose_name = "Vaccination: Automatic scheduling of second dose"
 
     class PretixPluginMeta:
-        name = gettext_lazy("Vaccination Utilities")
+        name = gettext_lazy("Vaccination: Automatic scheduling of second dose")
         author = "pretix team"
-        description = gettext_lazy("Various vaccination utilities")
+        description = gettext_lazy("Automatic scheduling of second dose after checkin")
         visible = True
         version = __version__
         category = "FEATURE"
@@ -25,4 +25,4 @@ class PluginApp(PluginConfig):
         from . import signals  # NOQA
 
 
-default_app_config = "pretix_vacc_utils.PluginApp"
+default_app_config = "pretix_vacc_autosched.PluginApp"
