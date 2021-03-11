@@ -15,9 +15,6 @@ class ItemConfigForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self.event = kwargs.pop("event")
-        instance = kwargs.get("instance")
-        initial = kwargs.get("initial", {})
-
         super().__init__(*args, **kwargs)
         self.fields["event"].queryset = self.event.organizer.events.filter(
             has_subevents=True
@@ -27,6 +24,9 @@ class ItemConfigForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        if data.get("days"):
+            if not self.event.has_subevents:
+                raise ValidationError("This may only be used on event series.")
         if data.get("event"):
             target_event = data["event"]
             has_item = (

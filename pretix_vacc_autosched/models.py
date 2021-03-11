@@ -1,11 +1,12 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from pretix.base.models import OrderPosition
 
 
 class ItemConfig(models.Model):
     item = models.OneToOneField(
         "pretixbase.Item",
-        related_name="vacc_sautosched_config",
+        related_name="vacc_autosched_config",
         on_delete=models.CASCADE,
     )
     days = models.IntegerField(
@@ -19,4 +20,13 @@ class ItemConfig(models.Model):
         blank=True,
         verbose_name=_("Scheduling of second dose: Event series to choose date from"),
         help_text=_("If empty, the current series will be used"),
+    )
+
+
+class LinkedOrderPosition(models.Model):
+    base_position = models.ForeignKey(
+        OrderPosition, related_name="vacc_autosched_linked", on_delete=models.PROTECT
+    )
+    child_position = models.OneToOneField(
+        OrderPosition, related_name="vacc_autosched_link", on_delete=models.PROTECT
     )
