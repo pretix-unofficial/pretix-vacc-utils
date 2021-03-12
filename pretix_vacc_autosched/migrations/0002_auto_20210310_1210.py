@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("pretixbase", "0178_auto_20210308_1326"),
+        ("pretixbase", "0175_orderrefund_comment"),
         ("pretix_vacc_autosched", "0001_initial"),
     ]
 
