@@ -90,6 +90,22 @@ class AutoschedSettingsForm(SettingsForm):
         ),
         required=False,
     )
+    vacc_autosched_self_service_info = I18nFormField(
+        label=_("Self service introduction"),
+        help_text=_(
+            "This text will be shown on the general self-service page, where customers enter their order code. You can use Markdown here."
+        ),
+        required=False,
+        widget=I18nTextarea,
+    )
+    vacc_autosched_self_service_order_info = I18nFormField(
+        label=_("Self service order information"),
+        help_text=_(
+            "This text will be shown on the page where customers order their second appointment. You can use Markdown here."
+        ),
+        required=False,
+        widget=I18nTextarea,
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -115,3 +131,22 @@ class AutoschedSettingsForm(SettingsForm):
         else:
             self.fields[fn].help_text = ht
         self.fields[fn].validators.append(PlaceholderValidator(phs))
+
+
+class SecondDoseCodeForm(forms.Form):
+    order = forms.CharField(label=_("Order code"))
+
+    def __init__(self, event, *args, **kwargs):
+        self.event = event
+        return super().__init__(*args, **kwargs)
+
+    def clean_order(self):
+        code = self.cleaned_data.get("order")
+        order = self.event.orders.filter(code__iexact=code).first()
+        if not order:
+            order = self.event.orders.filter(secret__iexact=code).first()
+        if not order:
+            order = self.event.orders.filter(all_positions__secret__iexact=code).first()
+        if not order:
+            raise forms.ValidationError(_("Unknown order code."))
+        return order

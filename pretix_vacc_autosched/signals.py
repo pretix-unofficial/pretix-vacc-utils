@@ -139,6 +139,16 @@ def badges_logentry_display(sender, logentry, **kwargs):
 settings_hierarkey.add_default("vacc_autosched_mail", False, bool)
 settings_hierarkey.add_default("vacc_autosched_self_service", False, bool)
 settings_hierarkey.add_default(
+    "vacc_autosched_self_service_info",
+    "",
+    LazyI18nString,
+)
+settings_hierarkey.add_default(
+    "vacc_autosched_self_service_order_info",
+    "",
+    LazyI18nString,
+)
+settings_hierarkey.add_default(
     "vacc_autosched_subject",
     LazyI18nString.from_gettext(gettext_noop("Your second dose: {scheduled_datetime}")),
     LazyI18nString,
