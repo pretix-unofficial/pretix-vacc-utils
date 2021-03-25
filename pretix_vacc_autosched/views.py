@@ -1,8 +1,11 @@
 import logging
+from django.http import Http404
 from django.urls import reverse
 from django.views.generic import FormView
 from pretix.base.models import Event
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
+from pretix.presale.views import EventViewMixin
+from pretix.presale.views.order import OrderDetailMixin
 
 from .forms import AutoschedSettingsForm
 
@@ -23,3 +26,18 @@ class SettingsView(EventSettingsViewMixin, EventSettingsFormView):
                 "event": self.request.event.slug,
             },
         )
+
+
+class SecondDoseMixin:
+    def dispatch(self, request, *args, **kwargs):
+        if not request.settings.vacc_autosched_self_service:
+            raise Http404()
+        return super().dispatch(request, *args, **kwargs)
+
+
+class SecondIndexView(SecondDoseMixin, EventViewMixin, FormView):
+    pass
+
+
+class SecondBookingView(SecondDoseMixin, OrderDetailMixin, FormView):
+    pass

@@ -83,6 +83,14 @@ class AutoschedSettingsForm(SettingsForm):
         widget=I18nTextarea,
     )
 
+    vacc_autosched_self_service = forms.BooleanField(
+        label=_("Self-service for second doses"),
+        help_text=_(
+            "Allows customers to schedule their second dose via the /2nd page."
+        ),
+        required=False,
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.event = kwargs.pop("obj")
