@@ -92,12 +92,30 @@ class SelfServiceBookingView(SelfServiceMixin, OrderDetailMixin, FormView):
         return result
 
     def form_valid(self, form):
-        form.save()
-        messages.success(self.request, _("Your appointment has been booked."))
-        return redirect(
-            "presale:event.order",
-            organizer=self.request.event.organizer.slug,
-            event=self.request.event.slug,
-            order=self.order.code,
-            secret=self.order.secret,
+        from .tasks import book_second_dose
+
+        subevent = form.cleaned_data["subevent"]
+        order = book_second_dose(
+            op=self.position,
+            item=form.target_item,
+            variation=form.target_variation,
+            subevent=subevent,
+            original_event=self.request.event,
         )
+        if order:
+            messages.success(self.request, _("Your appointment has been booked."))
+            return redirect(
+                "presale:event.order",
+                organizer=self.request.event.organizer.slug,
+                event=self.request.event.slug,
+                order=self.order.code,
+                secret=self.order.secret,
+            )
+        else:
+            messages.error(
+                self.request,
+                _(
+                    "There was an error when booking your second dose, please try again."
+                ),
+            )
+            return self.form_invalid(form)

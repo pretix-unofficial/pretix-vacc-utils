@@ -8,7 +8,7 @@ from django_scopes.forms import SafeModelChoiceField
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
 from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
-from pretix.base.models import Quota, SubEvent
+from pretix.base.models import Quota
 from pretix.base.services.quotas import QuotaAvailability
 
 from .models import ItemConfig
@@ -177,25 +177,19 @@ class SecondDoseOrderForm(forms.Form):
         subevents = event.subevents.filter(
             date_from__date__gte=min_date, date_from__date__lte=max_date
         )
-        subevents = SubEvent.annotated(subevents)
-        quotas_to_compute = []
-        for subevent in subevents:
-            if subevent.presale_is_running:
-                quotas_to_compute += [
-                    q
-                    for q in subevent.active_quotas
-                    if not q.cache_is_hot(now() + dt.timedelta(seconds=5))
-                ]
-        if quotas_to_compute:
-            qa = QuotaAvailability()
-            qa.queue(*quotas_to_compute)
-            qa.compute()
-            for subevent in subevents:
-                subevent._quota_cache = qa.results
+        quotas = Quota.objects.filter(
+            subevent__in=subevents, items__id=self.target_item.pk
+        )
+        qa = QuotaAvailability()
+        qa.queue(*quotas)
+        qa.compute()
         subevents = [
             se
             for se in subevents
-            if se.best_availability_state == Quota.AVAILABILITY_OK
+            if all(
+                qa.results[quota][0] == Quota.AVAILABILITY_OK
+                for quota in [q for q in quotas if q.subevent_id == se.pk]
+            )
         ]
         self.subevents = subevents
         if not subevents:
