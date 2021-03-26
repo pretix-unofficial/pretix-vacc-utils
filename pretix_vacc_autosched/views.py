@@ -11,7 +11,12 @@ from pretix.control.views.event import EventSettingsFormView, EventSettingsViewM
 from pretix.presale.views import EventViewMixin
 from pretix.presale.views.order import OrderDetailMixin
 
-from .forms import AutoschedSettingsForm, SecondDoseCodeForm, SecondDoseOrderForm
+from pretix_vacc_autosched.forms import (
+    AutoschedSettingsForm,
+    SecondDoseCodeForm,
+    SecondDoseOrderForm,
+)
+from pretix_vacc_autosched.models import LinkedOrderPosition
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +84,16 @@ class SelfServiceBookingView(SelfServiceMixin, OrderDetailMixin, FormView):
         if not config or not config.days or not position.subevent:
             raise Http404()
         self.position = position
+        link = LinkedOrderPosition.objects.filter(base_position=position).first()
+        if link:
+            order = link.child_position.order
+            return redirect(
+                "presale:event.order",
+                organizer=order.event.organizer.slug,
+                event=order.event.slug,
+                order=order.code,
+                secret=order.secret,
+            )
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
@@ -106,8 +121,8 @@ class SelfServiceBookingView(SelfServiceMixin, OrderDetailMixin, FormView):
             messages.success(self.request, _("Your appointment has been booked."))
             return redirect(
                 "presale:event.order",
-                organizer=self.request.event.organizer.slug,
-                event=self.request.event.slug,
+                organizer=order.event.organizer.slug,
+                event=order.event.slug,
                 order=self.order.code,
                 secret=self.order.secret,
             )
