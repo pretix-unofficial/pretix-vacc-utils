@@ -8,6 +8,8 @@ from django_scopes.forms import SafeModelChoiceField
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
 from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
+from pretix.base.models import Quota, SubEvent
+from pretix.base.services.quotas import QuotaAvailability
 
 from .models import ItemConfig
 
@@ -168,14 +170,35 @@ class SecondDoseOrderForm(forms.Form):
         first_date = position.subevent.date_from.date()
         min_date = max(first_date + dt.timedelta(days=config.days), now().date())
         max_date = first_date + dt.timedelta(days=config.max_days)
+
         subevents = event.subevents.filter(
             date_from__date__gte=min_date, date_from__date__lte=max_date
         )
+        subevents = SubEvent.annotated(subevents)
+        quotas_to_compute = []
+        for subevent in subevents:
+            if subevent.presale_is_running:
+                quotas_to_compute += [
+                    q
+                    for q in subevent.active_quotas
+                    if not q.cache_is_hot(now() + dt.timedelta(seconds=5))
+                ]
+        if quotas_to_compute:
+            qa = QuotaAvailability()
+            qa.queue(*quotas_to_compute)
+            qa.compute()
+            for subevent in subevents:
+                subevent._quota_cache = qa.results
+        subevents = [
+            se
+            for se in subevents
+            if se.best_availability_state == Quota.AVAILABILITY_OK
+        ]
         self.subevents = subevents
         if not subevents:
             raise Http404()
         self.fields["subevent"] = SafeModelChoiceField(
-            queryset=subevents,
+            queryset=event.subevents.filter(pk__in=[e.pk for e in subevents]),
             label=_("Date"),
             widget=forms.RadioSelect,
         )
