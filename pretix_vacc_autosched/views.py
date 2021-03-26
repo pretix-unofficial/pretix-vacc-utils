@@ -3,13 +3,15 @@ from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.formats import date_format
+from django.utils.functional import cached_property
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView
 from pretix.base.models import Event
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
+from pretix.multidomain.urlreverse import eventreverse
 from pretix.presale.views import EventViewMixin
-from pretix.presale.views.order import OrderDetailMixin
 
 from pretix_vacc_autosched.forms import (
     AutoschedSettingsForm,
@@ -40,7 +42,7 @@ class SettingsView(EventSettingsViewMixin, EventSettingsFormView):
 class SelfServiceMixin:
     def dispatch(self, request, *args, **kwargs):
         if not request.event.settings.vacc_autosched_self_service:
-            raise Http404()
+            raise Http404(_("Feature not enabled"))
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -56,21 +58,54 @@ class SelfServiceIndexView(SelfServiceMixin, EventViewMixin, FormView):
     def form_valid(self, form):
         order = form.cleaned_data.get("order")
         return redirect(
-            "plugins:pretix_vacc_autosched:second.booking",
-            organizer=self.request.event.organizer.slug,
-            event=self.request.event.slug,
-            order=order.code,
-            secret=order.secret,
+            eventreverse(
+                order.event,
+                "plugins:pretix_vacc_autosched:second.booking",
+                kwargs={"order": order.code},
+            )
         )
 
 
-class SelfServiceBookingView(SelfServiceMixin, OrderDetailMixin, FormView):
+class SelfServiceBookingView(SelfServiceMixin, EventViewMixin, FormView):
     form_class = SecondDoseOrderForm
     template_name = "pretix_vacc_autosched/self_service_order.html"
 
+    @cached_property
+    def order(self):
+        return (
+            self.request.event.orders.filter(code=self.kwargs["order"])
+            .select_related("event")
+            .first()
+        )
+
     def dispatch(self, request, *args, **kwargs):
-        if self.order.status != self.order.STATUS_PAID:
-            raise Http404()
+        if not self.order:
+            messages.error(
+                request,
+                _(
+                    "We were unable to find a valid ticket with this code, please try again."
+                ),
+            )
+            return redirect(
+                eventreverse(
+                    self.request.event,
+                    "plugins:pretix_vacc_autosched:second.index",
+                )
+            )
+
+        if self.order.status != self.order.STATUS_PAID or self.order.require_approval:
+            messages.error(
+                request,
+                _(
+                    "Scheduling of a second appointment is not available for this ticket since it has not yet been approved or has been canceled."
+                ),
+            )
+            return redirect(
+                eventreverse(
+                    self.request.event,
+                    "plugins:pretix_vacc_autosched:second.index",
+                )
+            )
 
         position = (
             self.order.positions.first()
@@ -79,20 +114,55 @@ class SelfServiceBookingView(SelfServiceMixin, OrderDetailMixin, FormView):
             not position.subevent
             or not position.subevent.date_from.date() <= now().date()
         ):
-            raise Http404()
+            messages.error(
+                request,
+                _(
+                    "Please do not try to schedule a second appointment before your first appointment is over."
+                ),
+            )
+            return redirect(
+                eventreverse(
+                    self.request.event,
+                    "plugins:pretix_vacc_autosched:second.index",
+                )
+            )
+
         config = getattr(position.item, "vacc_autosched_config", None)
         if not config or not config.days or not position.subevent:
-            raise Http404()
+            messages.error(
+                request,
+                _(
+                    "Scheduling of a second appointment is not available for this ticket."
+                ),
+            )
+            return redirect(
+                eventreverse(
+                    self.request.event,
+                    "plugins:pretix_vacc_autosched:second.index",
+                )
+            )
+
         self.position = position
         link = LinkedOrderPosition.objects.filter(base_position=position).first()
         if link:
-            order = link.child_position.order
+            messages.error(
+                request,
+                _(
+                    "A second appointment has already been scheduled for {datetime}. The ticket has been sent to you via email to the address used for your first booking."
+                ).format(
+                    datetime=date_format(
+                        link.child_position.subevent.date_from.astimezone(
+                            self.request.event.timezone
+                        ),
+                        "DATETIME_FORMAT",
+                    )
+                ),
+            )
             return redirect(
-                "presale:event.order",
-                organizer=order.event.organizer.slug,
-                event=order.event.slug,
-                order=order.code,
-                secret=order.secret,
+                eventreverse(
+                    self.request.event,
+                    "plugins:pretix_vacc_autosched:second.index",
+                )
             )
         return super().dispatch(request, *args, **kwargs)
 

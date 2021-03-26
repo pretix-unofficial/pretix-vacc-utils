@@ -2,16 +2,17 @@ import datetime as dt
 from django import forms
 from django.core.exceptions import ValidationError
 from django.http import Http404
+from django.utils.formats import date_format
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_scopes.forms import SafeModelChoiceField
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
 from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
-from pretix.base.models import Quota, Order
+from pretix.base.models import Order, Quota
 from pretix.base.services.quotas import QuotaAvailability
 
-from .models import ItemConfig
+from .models import ItemConfig, LinkedOrderPosition
 from .tasks import get_for_other_event
 
 
@@ -148,7 +149,7 @@ class SecondDoseCodeForm(forms.Form):
 
     def __init__(self, event, *args, **kwargs):
         self.event = event
-        return super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def clean_order(self):
         code = self.cleaned_data.get("order")
@@ -160,10 +161,37 @@ class SecondDoseCodeForm(forms.Form):
             order = qs.filter(all_positions__secret__iexact=code).first()
 
         if not order:
-            raise forms.ValidationError(_("We were unable to find a valid ticket with this code, please try again."))
+            raise forms.ValidationError(
+                _(
+                    "We were unable to find a valid ticket with this code, please try again."
+                )
+            )
 
-        if order.positions.count() != 1:
-            raise forms.ValidationError(_("This functionality is currently not available if multiple tickets have been created in one booking."))
+        positions = list(order.positions.all())
+
+        if len(positions) != 1:
+            raise forms.ValidationError(
+                _(
+                    "This functionality is currently not available if multiple tickets have been created in one booking."
+                )
+            )
+
+        position = positions[0]
+
+        lop = LinkedOrderPosition.objects.filter(base_position=position).first()
+        if lop:
+            raise forms.ValidationError(
+                _(
+                    "A second appointment has already been scheduled for {datetime}. The ticket has been sent to you via email to the address used for your first booking."
+                ).format(
+                    datetime=date_format(
+                        lop.child_position.subevent.date_from.astimezone(
+                            self.event.timezone
+                        ),
+                        "DATETIME_FORMAT",
+                    )
+                )
+            )
 
         return order
 
@@ -182,7 +210,7 @@ class SecondDoseOrderForm(forms.Form):
 
         first_date = position.subevent.date_from.date()
         min_date = max(first_date + dt.timedelta(days=config.days), now().date())
-        max_date = first_date + dt.timedelta(days=config.max_days)
+        max_date = first_date + dt.timedelta(days=config.max_days or 1)
 
         subevents = event.subevents.filter(
             date_from__date__gte=min_date,

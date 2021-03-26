@@ -10,17 +10,15 @@ urlpatterns = [
     ),
 ]
 
-from pretix.multidomain import event_url
-
 event_patterns = [
-    event_url(
-        r"^2nd",
-        SelfServiceIndexView.as_view(),
-        name="second.index",
-    ),
-    event_url(
-        r"^order/(?P<order>[^/]+)/(?P<secret>[A-Za-z0-9]+)/2nd$",
+    url(
+        r"^2nd/(?P<order>[^/]+)/$",
         SelfServiceBookingView.as_view(),
         name="second.booking",
+    ),
+    url(
+        r"^2nd/?$",
+        SelfServiceIndexView.as_view(),
+        name="second.index",
     ),
 ]
