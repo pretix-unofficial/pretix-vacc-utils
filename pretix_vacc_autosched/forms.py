@@ -158,8 +158,13 @@ class SecondDoseCodeForm(forms.Form):
             order = qs.filter(secret__iexact=code).first()
         if not order:
             order = qs.filter(all_positions__secret__iexact=code).first()
+
         if not order:
-            raise forms.ValidationError(_("Unknown order code."))
+            raise forms.ValidationError(_("We were unable to find a valid ticket with this code, please try again."))
+
+        if order.positions.count() != 1:
+            raise forms.ValidationError(_("This functionality is currently not available if multiple tickets have been created in one booking."))
+
         return order
 
 
