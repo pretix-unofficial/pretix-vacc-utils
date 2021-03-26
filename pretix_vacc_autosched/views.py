@@ -1,24 +1,28 @@
+import datetime as dt
 import logging
+
 from django.contrib import messages
 from django.http import Http404
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.formats import date_format
 from django.utils.functional import cached_property
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView
-from pretix.base.models import Event
-from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
-from pretix.multidomain.urlreverse import eventreverse
-from pretix.presale.views import EventViewMixin
-
 from pretix_vacc_autosched.forms import (
     AutoschedSettingsForm,
     SecondDoseCodeForm,
     SecondDoseOrderForm,
 )
 from pretix_vacc_autosched.models import LinkedOrderPosition
+from pretix_vacc_autosched.tasks import get_for_other_event
+
+from pretix.base.models import Event, Quota
+from pretix.base.services.quotas import QuotaAvailability
+from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
+from pretix.multidomain.urlreverse import eventreverse
+from pretix.presale.views import EventViewMixin
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +78,8 @@ class SelfServiceBookingView(SelfServiceMixin, EventViewMixin, FormView):
     def order(self):
         return (
             self.request.event.orders.filter(code=self.kwargs["order"])
-            .select_related("event")
-            .first()
+                .select_related("event")
+                .first()
         )
 
     def dispatch(self, request, *args, **kwargs):
@@ -111,8 +115,8 @@ class SelfServiceBookingView(SelfServiceMixin, EventViewMixin, FormView):
             self.order.positions.first()
         )  # We assume that there's only one position per order
         if (
-            not position.subevent
-            or not position.subevent.date_from.date() <= now().date()
+                not position.subevent
+                or not position.subevent.date_from.date() <= now().date()
         ):
             messages.error(
                 request,
@@ -164,11 +168,55 @@ class SelfServiceBookingView(SelfServiceMixin, EventViewMixin, FormView):
                     "plugins:pretix_vacc_autosched:second.index",
                 )
             )
+
+        first_date = position.subevent.date_from.date()
+        min_date = max(first_date + dt.timedelta(days=config.days), now().date())
+        max_date = first_date + dt.timedelta(days=config.max_days if config.max_days is not None else 1)
+
+        self.other_event = config.event or position.order.event
+
+        self.target_item, self.target_variation = get_for_other_event(position, self.other_event)
+        subevents = self.other_event.subevents.filter(
+            date_from__date__gte=min_date,
+            date_from__date__lte=max_date,
+        )
+        quotas = Quota.objects.filter(
+            subevent__in=subevents, items__id=self.target_item.pk
+        )
+        qa = QuotaAvailability()
+        qa.queue(*quotas)
+        qa.compute()
+        available_subevents = []
+        for subevent in subevents:
+            qlist = [q for q in quotas if q.subevent_id == subevent.pk]
+            if qlist and all(
+                    qa.results[q][0] == Quota.AVAILABILITY_OK for q in qlist
+            ):
+                available_subevents.append(subevent)
+
+        self.subevents = available_subevents
+
+        if not self.subevents:
+            messages.error(
+                request,
+                _(
+                    "Unfortunately, there is currently no available slot for a second appointment."
+                ),
+            )
+            return redirect(
+                eventreverse(
+                    self.request.event,
+                    "plugins:pretix_vacc_autosched:second.index",
+                )
+            )
+
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         result = super().get_form_kwargs()
         result["position"] = self.position
+        result["available_subevents"] = self.subevents
+        result["event"] = self.other_event
         return result
 
     def get_context_data(self, **kwargs):
@@ -182,20 +230,14 @@ class SelfServiceBookingView(SelfServiceMixin, EventViewMixin, FormView):
         subevent = form.cleaned_data["subevent"]
         order = book_second_dose(
             op=self.position,
-            item=form.target_item,
-            variation=form.target_variation,
+            item=self.target_item,
+            variation=self.target_variation,
             subevent=subevent,
             original_event=self.request.event,
         )
         if order:
-            messages.success(self.request, _("Your appointment has been booked."))
-            return redirect(
-                "presale:event.order",
-                organizer=order.event.organizer.slug,
-                event=order.event.slug,
-                order=self.order.code,
-                secret=self.order.secret,
-            )
+            messages.success(self.request, _("Your appointment has been booked. We've sent you the details via email."))
+            return render(self.request, "pretix_vacc_autosched/thanks.html", context=self.get_context_data())
         else:
             messages.error(
                 self.request,

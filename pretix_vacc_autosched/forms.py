@@ -1,17 +1,13 @@
-import datetime as dt
 from django import forms
 from django.core.exceptions import ValidationError
-from django.http import Http404
 from django.utils.formats import date_format
-from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_scopes.forms import SafeModelChoiceField
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
+
 from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
-from pretix.base.models import Order, Quota
-from pretix.base.services.quotas import QuotaAvailability
-
+from pretix.base.models import Order
 from .models import ItemConfig, LinkedOrderPosition
 from .tasks import get_for_other_event
 
@@ -197,44 +193,13 @@ class SecondDoseCodeForm(forms.Form):
 
 
 class SecondDoseOrderForm(forms.Form):
-    def __init__(self, *args, position=None, **kwargs):
+    def __init__(self, *args, position, available_subevents, event, **kwargs):
         self.position = position
         super().__init__(*args, **kwargs)
 
-        config = getattr(position.item, "vacc_autosched_config", None)
-        if not config:  # We make sure this exists in the view
-            raise Exception("No item config, cannot provide second dose.")
-
-        event = config.event or position.order.event
-        self.target_item, self.target_variation = get_for_other_event(position, event)
-
-        first_date = position.subevent.date_from.date()
-        min_date = max(first_date + dt.timedelta(days=config.days), now().date())
-        max_date = first_date + dt.timedelta(days=config.max_days or 1)
-
-        subevents = event.subevents.filter(
-            date_from__date__gte=min_date,
-            date_from__date__lte=max_date,
-            items__in=[self.target_item],
-        ).order_by("date_from")
-        quotas = Quota.objects.filter(
-            subevent__in=subevents, items__id=self.target_item.pk
-        )
-        qa = QuotaAvailability()
-        qa.queue(*quotas)
-        qa.compute()
-        available_subevents = []
-        for subevent in subevents:
-            quotas = [q for q in quotas if q.subevent_id == subevent.pk]
-            if quotas and all(
-                qa.results[q][0] == Quota.AVAILABILITY_OK for q in quotas
-            ):
-                available_subevents.append(subevent)
         self.subevents = available_subevents
-        if not subevents:
-            raise Http404()
         self.fields["subevent"] = forms.ModelChoiceField(
-            queryset=event.subevents.filter(pk__in=[e.pk for e in available_subevents]),
+            queryset=event.subevents.filter(pk__in=[e.pk for e in available_subevents]).order_by("date_from"),
             label=_("Date"),
             widget=forms.RadioSelect,
         )
