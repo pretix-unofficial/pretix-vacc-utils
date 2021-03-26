@@ -15,7 +15,7 @@ class PluginApp(PluginConfig):
     class PretixPluginMeta:
         name = gettext_lazy("Vaccination: Automatic scheduling of second dose")
         author = "pretix team"
-        description = gettext_lazy("Automatic scheduling of second dose after checkin")
+        description = gettext_lazy("Automatic scheduling of second dose")
         visible = True
         version = __version__
         category = "FEATURE"

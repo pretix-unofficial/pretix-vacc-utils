@@ -8,7 +8,7 @@ from django_scopes.forms import SafeModelChoiceField
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
 from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
-from pretix.base.models import Quota
+from pretix.base.models import Quota, Order
 from pretix.base.services.quotas import QuotaAvailability
 
 from .models import ItemConfig
@@ -72,6 +72,10 @@ class ItemConfigForm(forms.ModelForm):
 
 
 class AutoschedSettingsForm(SettingsForm):
+    vacc_autosched_checkin = forms.BooleanField(
+        label=_("Auto-schedule second dose after check-in"),
+        required=False,
+    )
     vacc_autosched_mail = forms.BooleanField(
         label=_("Send email if second dose has been scheduled"),
         required=False,
@@ -148,11 +152,12 @@ class SecondDoseCodeForm(forms.Form):
 
     def clean_order(self):
         code = self.cleaned_data.get("order")
-        order = self.event.orders.filter(code__iexact=code).first()
+        qs = self.event.orders.filter(status=Order.STATUS_PAID)
+        order = qs.filter(code__iexact=code).first()
         if not order:
-            order = self.event.orders.filter(secret__iexact=code).first()
+            order = qs.filter(secret__iexact=code).first()
         if not order:
-            order = self.event.orders.filter(all_positions__secret__iexact=code).first()
+            order = qs.filter(all_positions__secret__iexact=code).first()
         if not order:
             raise forms.ValidationError(_("Unknown order code."))
         return order

@@ -80,6 +80,8 @@ def event_copy_data_receiver(sender, other, question_map, item_map, **kwargs):
 def checkin_created_receiver(sender, checkin, **kwargs):
     if checkin.list.name.startswith("Print"):
         return  # ignore, not a "real" check-in
+    if not sender.settings.vacc_autosched_checkin:
+        return  # ignore, handled manually
 
     try:
         ItemConfig.objects.get(item=checkin.position.item)
@@ -166,4 +168,4 @@ settings_hierarkey.add_default(
     ),
     LazyI18nString,
 )
-settings_hierarkey.add_default("doistep_record_ip", False, bool)
+settings_hierarkey.add_default("vacc_autosched_checkin", True, bool)
