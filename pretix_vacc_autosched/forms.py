@@ -12,6 +12,7 @@ from pretix.base.models import Quota, SubEvent
 from pretix.base.services.quotas import QuotaAvailability
 
 from .models import ItemConfig
+from .tasks import get_for_other_event
 
 
 class ItemConfigForm(forms.ModelForm):
@@ -167,6 +168,8 @@ class SecondDoseOrderForm(forms.Form):
             raise Exception("No item config, cannot provide second dose.")
 
         event = config.event or position.order.event
+        self.target_item, self.target_variation = get_for_other_event(position, event)
+
         first_date = position.subevent.date_from.date()
         min_date = max(first_date + dt.timedelta(days=config.days), now().date())
         max_date = first_date + dt.timedelta(days=config.max_days)

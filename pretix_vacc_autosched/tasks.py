@@ -19,6 +19,49 @@ from pretix_vacc_autosched.models import LinkedOrderPosition
 logger = logging.getLogger(__name__)
 
 
+def get_for_other_event(op, event):
+    if op.order.event == event:
+        return op.item, op.variation
+
+    possible_items = [
+        n
+        for n in event.items.all()
+        if (n.internal_name or str(n.name))
+        == (op.item.internal_name or str(op.item.name))
+    ]
+    if len(possible_items) != 1:
+        op.order.log_action(
+            "pretix_vacc_autosched.failed",
+            data={
+                "reason": _("No product found"),
+                "position": op.pk,
+            },
+        )
+        return None, None
+
+    target_item = possible_items[0]
+
+    if op.variation or target_item.variations.exists():
+        possible_variations = [
+            n
+            for n in target_item.variations.all()
+            if str(n.value) == (str(op.variation.value) if op.variation else None)
+        ]
+        if len(possible_variations) != 1:
+            op.order.log_action(
+                "pretix_vacc_autosched.failed",
+                data={
+                    "reason": _("No product variation found"),
+                    "position": op.pk,
+                },
+            )
+            return None, None
+        target_var = possible_variations[0]
+    else:
+        target_var = None
+    return target_item, target_var
+
+
 @app.task(base=EventTask, bind=True, max_retries=5, default_retry_delay=60)
 def schedule_second_dose(self, event, op):
     op = OrderPosition.objects.select_related(
@@ -39,41 +82,9 @@ def schedule_second_dose(self, event, op):
     )
 
     target_event = itemconf.event or event
-    possible_items = [
-        n
-        for n in target_event.items.all()
-        if (n.internal_name or str(n.name))
-        == (op.item.internal_name or str(op.item.name))
-    ]
-    if len(possible_items) != 1:
-        op.order.log_action(
-            "pretix_vacc_autosched.failed",
-            data={
-                "reason": _("No product found"),
-                "position": op.pk,
-            },
-        )
+    target_item, target_var = get_for_other_event(op, target_event)
+    if target_item is None:
         return
-    target_item = possible_items[0]
-
-    if op.variation or target_item.variations.exists():
-        possible_variations = [
-            n
-            for n in target_item.variations.all()
-            if str(n.value) == (str(op.variation.value) if op.variation else None)
-        ]
-        if len(possible_variations) != 1:
-            op.order.log_action(
-                "pretix_vacc_autosched.failed",
-                data={
-                    "reason": _("No product variation found"),
-                    "position": op.pk,
-                },
-            )
-            return
-        target_var = possible_variations[0]
-    else:
-        target_var = None
 
     for i in range(100):  # max number of subevents to check
         subevent = (
