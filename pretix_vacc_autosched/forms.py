@@ -175,28 +175,28 @@ class SecondDoseOrderForm(forms.Form):
         max_date = first_date + dt.timedelta(days=config.max_days)
 
         subevents = event.subevents.filter(
-            date_from__date__gte=min_date, date_from__date__lte=max_date,
+            date_from__date__gte=min_date,
+            date_from__date__lte=max_date,
             items__in=[self.target_item],
-        )
+        ).order_by("date_from")
         quotas = Quota.objects.filter(
             subevent__in=subevents, items__id=self.target_item.pk
         )
         qa = QuotaAvailability()
         qa.queue(*quotas)
         qa.compute()
-        subevents = [
-            se
-            for se in subevents
-            if all(
-                qa.results[quota][0] == Quota.AVAILABILITY_OK
-                for quota in [q for q in quotas if q.subevent_id == se.pk]
-            )
-        ]
-        self.subevents = subevents
+        available_subevents = []
+        for subevent in subevents:
+            quotas = [q for q in quotas if q.subevent_id == subevent.pk]
+            if quotas and all(
+                qa.results[q][0] == Quota.AVAILABILITY_OK for q in quotas
+            ):
+                available_subevents.append(subevent)
+        self.subevents = available_subevents
         if not subevents:
             raise Http404()
-        self.fields["subevent"] = SafeModelChoiceField(
-            queryset=event.subevents.filter(pk__in=[e.pk for e in subevents]),
+        self.fields["subevent"] = forms.ModelChoiceField(
+            queryset=event.subevents.filter(pk__in=[e.pk for e in available_subevents]),
             label=_("Date"),
             widget=forms.RadioSelect,
         )
