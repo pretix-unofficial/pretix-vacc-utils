@@ -13,6 +13,12 @@ class ItemConfig(models.Model):
         verbose_name=_("Scheduling of second dose: Number of days"),
         help_text=_("Keep empty to turn feature off"),
     )
+    max_days = models.IntegerField(
+        verbose_name=_("Scheduling of second dose: Maximum number of days"),
+        help_text=_("Used in the self-service functionality."),
+        null=True,
+        blank=True,
+    )
     event = models.ForeignKey(
         "pretixbase.Event",
         on_delete=models.CASCADE,

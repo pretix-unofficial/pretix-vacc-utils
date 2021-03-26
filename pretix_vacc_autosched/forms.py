@@ -12,7 +12,7 @@ from .models import ItemConfig
 class ItemConfigForm(forms.ModelForm):
     class Meta:
         model = ItemConfig
-        fields = ["days", "event"]
+        fields = ["days", "max_days", "event"]
         exclude = []
         field_classes = {"event": SafeModelChoiceField}
 
