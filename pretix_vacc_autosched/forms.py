@@ -175,7 +175,8 @@ class SecondDoseOrderForm(forms.Form):
         max_date = first_date + dt.timedelta(days=config.max_days)
 
         subevents = event.subevents.filter(
-            date_from__date__gte=min_date, date_from__date__lte=max_date
+            date_from__date__gte=min_date, date_from__date__lte=max_date,
+            items__in=[self.target_item],
         )
         quotas = Quota.objects.filter(
             subevent__in=subevents, items__id=self.target_item.pk
