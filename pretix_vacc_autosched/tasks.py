@@ -94,127 +94,21 @@ def schedule_second_dose(self, event, op):
             return
 
         try:
-            with target_event.lock(), transaction.atomic():
-                avcode, avnr = target_item.check_quotas(
-                    subevent=subevent, fail_on_no_quotas=True
-                )
-                if avcode != Quota.AVAILABILITY_OK:
-                    # sold out, look for next one
-                    earliest_date += timedelta(minutes=1)
-                    continue
-
-                childorder = Order.objects.create(
-                    event=target_event,
-                    status=Order.STATUS_PAID,
-                    require_approval=False,
-                    testmode=op.order.testmode,
-                    email=op.order.email,
-                    locale=op.order.locale,
-                    expires=now() + timedelta(days=30),
-                    total=Decimal("0.00"),
-                    expiry_reminder_sent=True,
-                    sales_channel=op.order.sales_channel,
-                    comment="Auto-generated through scheduling from order {}".format(
-                        op.order.code
-                    ),
-                    meta_info=op.order.meta_info,
-                )
-                op.order.log_action(
-                    "pretix_vacc_autosched.scheduled",
-                    data={
-                        "position": op.pk,
-                        "event": target_event.pk,
-                        "event_slug": target_event.slug,
-                        "order": childorder.code,
-                    },
-                )
-                childorder.log_action(
-                    "pretix_vacc_autosched.created",
-                    data={
-                        "event": event.pk,
-                        "event_slug": event.slug,
-                        "order": op.order.code,
-                    },
-                )
-                childorder.log_action(
-                    "pretix.event.order.placed", data={"source": "vacc_autosched"}
-                )
-                childpos = childorder.positions.create(
-                    positionid=1,
-                    tax_rate=Decimal("0.00"),
-                    tax_rule=None,
-                    tax_value=Decimal("0.00"),
-                    subevent=subevent,
-                    item=target_item,
-                    variation=target_var,
-                    price=Decimal("0.00"),
-                    attendee_name_cached=op.attendee_name_cached,
-                    attendee_name_parts=op.attendee_name_parts,
-                    attendee_email=op.attendee_email,
-                    company=op.company,
-                    street=op.street,
-                    zipcode=op.zipcode,
-                    city=op.city,
-                    country=op.country,
-                    state=op.state,
-                    addon_to=None,
-                    voucher=None,
-                    meta_info=op.meta_info,
-                )
-                for answ in op.answers.all():
-                    q = childorder.event.questions.filter(
-                        identifier=answ.question.identifier
-                    ).first()
-                    if not q:
-                        continue
-                    childansw = childpos.answers.create(
-                        question=q, answer=answ.answer, file=answ.file
-                    )
-                    if answ.options.all():
-                        childopts = list(
-                            q.options.filter(
-                                identifier__in=[
-                                    o.identifier for o in answ.options.all()
-                                ]
-                            )
-                        )
-                        if childopts:
-                            childansw.options.add(*childopts)
-
-                LinkedOrderPosition.objects.create(
-                    base_position=op, child_position=childpos
-                )
-            order_placed.send(event, order=childorder)
-            order_paid.send(event, order=childorder)
-
-            if event.settings.vacc_autosched_mail:
-                with language(childorder.locale, target_event.settings.region):
-                    email_template = event.settings.vacc_autosched_body
-                    email_subject = str(event.settings.vacc_autosched_subject)
-
-                    email_context = get_email_context(
-                        event=childorder.event, order=childorder
-                    )
-                    email_context["scheduled_datetime"] = date_format(
-                        subevent.date_from.astimezone(event.timezone),
-                        "SHORT_DATETIME_FORMAT",
-                    )
-                    try:
-                        childorder.send_mail(
-                            email_subject,
-                            email_template,
-                            email_context,
-                            "pretix.event.order.email.order_placed",
-                            attach_tickets=True,
-                            attach_ical=target_event.settings.mail_attach_ical,
-                        )
-                    except SendMailException:
-                        logger.exception("Order approved email could not be sent")
+            order = book_second_dose(
+                op=op,
+                item=target_item,
+                variation=target_var,
+                subevent=subevent,
+                original_event=event,
+            )
+            if not order:
+                earliest_date += timedelta(minutes=1)
+                continue
 
         except LockTimeoutException:
             self.retry()
 
-        return
+        return order
 
     op.order.log_action(
         "pretix_vacc_autosched.failed",
@@ -224,3 +118,115 @@ def schedule_second_dose(self, event, op):
         },
     )
     return
+
+
+def book_second_dose(*, op, item, variation, subevent, original_event):
+    event = item.event
+    with event.lock(), transaction.atomic():
+        avcode, avnr = item.check_quotas(subevent=subevent, fail_on_no_quotas=True)
+        if avcode != Quota.AVAILABILITY_OK:
+            # sold out, look for next one
+            return
+
+        childorder = Order.objects.create(
+            event=event,
+            status=Order.STATUS_PAID,
+            require_approval=False,
+            testmode=op.order.testmode,
+            email=op.order.email,
+            locale=op.order.locale,
+            expires=now() + timedelta(days=30),
+            total=Decimal("0.00"),
+            expiry_reminder_sent=True,
+            sales_channel=op.order.sales_channel,
+            comment="Auto-generated through scheduling from order {}".format(
+                op.order.code
+            ),
+            meta_info=op.order.meta_info,
+        )
+        op.order.log_action(
+            "pretix_vacc_autosched.scheduled",
+            data={
+                "position": op.pk,
+                "event": event.pk,
+                "event_slug": event.slug,
+                "order": childorder.code,
+            },
+        )
+        childorder.log_action(
+            "pretix_vacc_autosched.created",
+            data={
+                "event": original_event.pk,
+                "event_slug": original_event.slug,
+                "order": op.order.code,
+            },
+        )
+        childorder.log_action(
+            "pretix.event.order.placed", data={"source": "vacc_autosched"}
+        )
+        childpos = childorder.positions.create(
+            positionid=1,
+            tax_rate=Decimal("0.00"),
+            tax_rule=None,
+            tax_value=Decimal("0.00"),
+            subevent=subevent,
+            item=item,
+            variation=variation,
+            price=Decimal("0.00"),
+            attendee_name_cached=op.attendee_name_cached,
+            attendee_name_parts=op.attendee_name_parts,
+            attendee_email=op.attendee_email,
+            company=op.company,
+            street=op.street,
+            zipcode=op.zipcode,
+            city=op.city,
+            country=op.country,
+            state=op.state,
+            addon_to=None,
+            voucher=None,
+            meta_info=op.meta_info,
+        )
+        for answ in op.answers.all():
+            q = childorder.event.questions.filter(
+                identifier=answ.question.identifier
+            ).first()
+            if not q:
+                continue
+            childansw = childpos.answers.create(
+                question=q, answer=answ.answer, file=answ.file
+            )
+            if answ.options.all():
+                childopts = list(
+                    q.options.filter(
+                        identifier__in=[o.identifier for o in answ.options.all()]
+                    )
+                )
+                if childopts:
+                    childansw.options.add(*childopts)
+
+        LinkedOrderPosition.objects.create(base_position=op, child_position=childpos)
+    order_placed.send(event, order=childorder)
+    order_paid.send(event, order=childorder)
+
+    if event.settings.vacc_autosched_mail:
+        with language(childorder.locale, event.settings.region):
+            email_template = event.settings.vacc_autosched_body
+            email_subject = str(event.settings.vacc_autosched_subject)
+
+            email_context = get_email_context(event=childorder.event, order=childorder)
+            email_context["scheduled_datetime"] = date_format(
+                subevent.date_from.astimezone(event.timezone),
+                "SHORT_DATETIME_FORMAT",
+            )
+            try:
+                childorder.send_mail(
+                    email_subject,
+                    email_template,
+                    email_context,
+                    "pretix.event.order.email.order_placed",
+                    attach_tickets=True,
+                    attach_ical=event.settings.mail_attach_ical,
+                )
+            except SendMailException:
+                logger.exception("Order approved email could not be sent")
+    return childorder
