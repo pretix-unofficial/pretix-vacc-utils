@@ -1,0 +1,47 @@
+{% extends "pretixpresale/event/base.html" %}
+{% load i18n %}
+{% load bootstrap3 %}
+{% load eventurl %}
+{% load rich_text %}
+{% load static %}
+
+{% block custom_header %}
+    <link rel="stylesheet" href="{% static "pretix_vacc_autosched/style.css" %}"/>
+{% endblock %}
+
+{% block title %}{% trans "Book second appointment" %}{% endblock %}
+{% block content %}
+    <h2>
+        {% trans "Book second appointment" %}
+        {% if order.testmode %}
+            <span class="label label-warning">{% trans "TEST MODE" %}</span>
+        {% endif %}
+        <a href="{% eventurl event "presale:event.order" secret=order.secret order=order.code %}"
+                class="btn btn-default">
+            {% trans "Back to order" %}
+        </a>
+        {% include "pretixpresale/event/fragment_order_status.html" with order=order event=request.event class="pull-right flip" %}
+        <div class="clearfix"></div>
+    </h2>
+    <p>
+    {{ request.event.settings.vacc_autosched_self_service_order_info | rich_text }}
+    </p>
+    <form method="post">{% csrf_token %}
+        {% bootstrap_form_errors form %}
+        <div class="form-group" id="date-series">
+            <div id="id_subevent">
+                {% for subevent in form.subevents %}
+                <div class="radio subevent-choice">
+                    <input id="id_subevent_{{ subevent.pk }}" type="radio" name="subevent" value="{{ subevent.pk }}" title="{{ subevent.date_from }}">
+                    <label class="subevent-info" for="id_subevent_{{ subevent.pk }}">
+                        <strong>{{ subevent.date_from.date|date }}</strong>
+                        <span class="time">{{ subevent.date_from|date:"TIME_FORMAT" }} – {{ subevent.date_to|date:"TIME_FORMAT" }}</span>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    <button type="submit" class="btn btn-primary btn-block">{% trans "Book appointment" %}</button>
+    </form>
+{% endblock %}
+

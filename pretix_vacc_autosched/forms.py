@@ -1,5 +1,8 @@
+import datetime as dt
 from django import forms
 from django.core.exceptions import ValidationError
+from django.http import Http404
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_scopes.forms import SafeModelChoiceField
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
@@ -150,3 +153,29 @@ class SecondDoseCodeForm(forms.Form):
         if not order:
             raise forms.ValidationError(_("Unknown order code."))
         return order
+
+
+class SecondDoseOrderForm(forms.Form):
+    def __init__(self, *args, position=None, **kwargs):
+        self.position = position
+        super().__init__(*args, **kwargs)
+
+        config = getattr(position.item, "vacc_autosched_config", None)
+        if not config:  # We make sure this exists in the view
+            raise Exception("No item config, cannot provide second dose.")
+
+        event = config.event or position.order.event
+        first_date = position.subevent.date_from.date()
+        min_date = max(first_date + dt.timedelta(days=config.days), now().date())
+        max_date = first_date + dt.timedelta(days=config.max_days)
+        subevents = event.subevents.filter(
+            date_from__date__gte=min_date, date_from__date__lte=max_date
+        )
+        self.subevents = subevents
+        if not subevents:
+            raise Http404()
+        self.fields["subevent"] = SafeModelChoiceField(
+            queryset=subevents,
+            label=_("Date"),
+            widget=forms.RadioSelect,
+        )

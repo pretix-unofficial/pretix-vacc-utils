@@ -1,14 +1,16 @@
 import logging
+from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.timezone import now
 from django.views.generic import FormView
 from pretix.base.models import Event
 from pretix.control.views.event import EventSettingsFormView, EventSettingsViewMixin
 from pretix.presale.views import EventViewMixin
 from pretix.presale.views.order import OrderDetailMixin
 
-from .forms import AutoschedSettingsForm, SecondDoseCodeForm
+from .forms import AutoschedSettingsForm, SecondDoseCodeForm, SecondDoseOrderForm
 
 logger = logging.getLogger(__name__)
 
@@ -57,4 +59,44 @@ class SelfServiceIndexView(SelfServiceMixin, EventViewMixin, FormView):
 
 
 class SelfServiceBookingView(SelfServiceMixin, OrderDetailMixin, FormView):
-    pass
+    form_class = SecondDoseOrderForm
+    template_name = "pretix_vacc_autosched/self_service_order.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if self.order.status != self.order.STATUS_PAID:
+            raise Http404()
+
+        position = (
+            self.order.positions.first()
+        )  # We assume that there's only one position per order
+        if (
+            not position.subevent
+            or not position.subevent.date_from.date() <= now().date()
+        ):
+            raise Http404()
+        config = getattr(position.item, "vacc_autosched_config", None)
+        if not config or not config.days or not position.subevent:
+            raise Http404()
+        self.position = position
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        result = super().get_form_kwargs()
+        result["position"] = self.position
+        return result
+
+    def get_context_data(self, **kwargs):
+        result = super().get_context_data(**kwargs)
+        result["order"] = self.order
+        return result
+
+    def form_valid(self, form):
+        form.save()
+        messages.success(self.request, _("Your appointment has been booked."))
+        return redirect(
+            "presale:event.order",
+            organizer=self.request.event.organizer.slug,
+            event=self.request.event.slug,
+            order=self.order.code,
+            secret=self.order.secret,
+        )

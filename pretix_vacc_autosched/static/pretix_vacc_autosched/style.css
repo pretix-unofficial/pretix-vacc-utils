@@ -1,0 +1,12 @@
+#date-series {
+}
+.subevent-choice {
+    padding: 18px;
+    padding-left: 42px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.subevent-choice .subevent-info {
+    display: flex;
+    flex-direction: column;
+}
