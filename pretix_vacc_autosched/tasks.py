@@ -86,7 +86,7 @@ def schedule_second_dose(self, event, op):
     if target_item is None:
         return
 
-    for i in range(100):  # max number of subevents to check
+    for i in range(250):  # max number of subevents to check
         subevent = (
             target_event.subevents.filter(
                 date_from__gte=earliest_date,
