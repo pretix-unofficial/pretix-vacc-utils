@@ -115,11 +115,10 @@ def schedule_second_dose(self, event, op):
             if not order:
                 earliest_date += timedelta(minutes=1)
                 continue
-
+            else:
+                return
         except LockTimeoutException:
             self.retry()
-
-        return order
 
     op.order.log_action(
         "pretix_vacc_autosched.failed",
