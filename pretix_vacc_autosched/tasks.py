@@ -218,14 +218,14 @@ def book_second_dose(*, op, item, variation, subevent, original_event):
     order_placed.send(event, order=childorder)
     order_paid.send(event, order=childorder)
 
-    if event.settings.vacc_autosched_mail:
-        with language(childorder.locale, event.settings.region):
-            email_template = event.settings.vacc_autosched_body
-            email_subject = str(event.settings.vacc_autosched_subject)
+    if original_event.settings.vacc_autosched_mail:
+        with language(childorder.locale, original_event.settings.region):
+            email_template = original_event.settings.vacc_autosched_body
+            email_subject = str(original_event.settings.vacc_autosched_subject)
 
             email_context = get_email_context(event=childorder.event, order=childorder)
             email_context["scheduled_datetime"] = date_format(
-                subevent.date_from.astimezone(event.timezone),
+                subevent.date_from.astimezone(original_event.timezone),
                 "SHORT_DATETIME_FORMAT",
             )
             try:
