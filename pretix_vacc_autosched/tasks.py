@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.db import transaction
+from django.db.models import Q
 from django.utils.formats import date_format
 from django.utils.timezone import make_aware, now
 from django.utils.translation import ugettext_lazy as _
@@ -68,7 +69,7 @@ def schedule_second_dose(self, event, op):
         "item", "variation", "subevent", "order"
     ).get(pk=op)
 
-    if LinkedOrderPosition.objects.filter(base_position=op).exists():
+    if LinkedOrderPosition.objects.filter(Q(base_position=op) |Q(child_position=op)).exists():
         return
 
     itemconf = op.item.vacc_autosched_config
