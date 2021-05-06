@@ -1,0 +1,56 @@
+### Activate plugin
+
+PATCH http://localhost:8000/api/v1/organizers/demo/events/firstshot/
+Authorization: Token s1p5713blkfjrfo6vhgxki7s989jrb8f29t1pq9qpknfqc9wz767s5i1me3csuxt
+Content-Type: application/json
+
+{
+  "plugins": [
+    "pretix.plugins.sendmail",
+    "pretix.plugins.statistics",
+    "pretix.plugins.ticketoutputpdf",
+    "pretix_vacc_autosched"
+  ]
+}
+
+### Set plugin settings
+
+PATCH http://localhost:8000/api/v1/organizers/demo/events/firstshot/settings/
+Authorization: Token s1p5713blkfjrfo6vhgxki7s989jrb8f29t1pq9qpknfqc9wz767s5i1me3csuxt
+Content-Type: application/json
+
+{
+  "vacc_autosched_checkin": true,
+  "vacc_autosched_mail": true,
+  "vacc_autosched_subject": {
+    "en": "Please come back for your second dose: {scheduled_datetime}"
+  },
+  "vacc_autosched_body": {
+    "en": "Hello,\n\nwe have now scheduled your second dose for {scheduled_datetime}.\n\nPlease find additional information in your ticket attached.\n\nBest regards,\nYour {event} team"
+  },
+  "vacc_autosched_self_service": false,
+  "vacc_autosched_self_service_info": {
+    "en": "This text will be shown on the general self-service page, where customers enter their order code. You can use Markdown here."
+  },
+  "vacc_autosched_self_service_order_info": {
+    "en": "This text will be shown on the page where customers order their second appointment. You can use Markdown here."
+  }
+}
+
+### Set settings for product and connect to other event (only PUT supported for now)
+
+PUT http://localhost:8000/api/v1/organizers/demo/events/firstshot/items/27/vacc_autosched/
+Authorization: Token s1p5713blkfjrfo6vhgxki7s989jrb8f29t1pq9qpknfqc9wz767s5i1me3csuxt
+Content-Type: application/json
+
+{
+  "event": "firstshot",
+  "days": 21,
+  "max_days": null
+}
+
+### Remove settings from products
+
+DELETE http://localhost:8000/api/v1/organizers/demo/events/firstshot/items/27/vacc_autosched/
+Authorization: Token s1p5713blkfjrfo6vhgxki7s989jrb8f29t1pq9qpknfqc9wz767s5i1me3csuxt
+Content-Type: application/json

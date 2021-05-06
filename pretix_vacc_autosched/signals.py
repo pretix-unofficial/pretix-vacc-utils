@@ -3,13 +3,16 @@ from django.dispatch import receiver
 from django.urls import resolve, reverse
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_noop, ugettext_lazy as _
+from i18nfield.rest_framework import I18nField
 from i18nfield.strings import LazyI18nString
+from rest_framework import serializers
+
 from pretix.base.settings import settings_hierarkey
 from pretix.base.signals import (
     checkin_created,
     event_copy_data,
     item_copy_data,
-    logentry_display,
+    logentry_display, api_event_settings_fields,
 )
 from pretix.control.signals import item_forms, nav_event_settings
 
@@ -94,6 +97,18 @@ def checkin_created_receiver(sender, checkin, **kwargs):
             checkin.position.pk,
         )
     )
+
+@receiver(signal=api_event_settings_fields, dispatch_uid="vacc_autosched_api_event_settings_fields")
+def recv_api_event_settings_fields(sender, **kwargs):
+    return {
+        'vacc_autosched_checkin': serializers.BooleanField(required=False),
+        'vacc_autosched_mail': serializers.BooleanField(required=False),
+        'vacc_autosched_subject': I18nField(required=False),
+        'vacc_autosched_body': I18nField(required=False),
+        'vacc_autosched_self_service': serializers.BooleanField(required=False),
+        'vacc_autosched_self_service_info': I18nField(required=False),
+        'vacc_autosched_self_service_order_info': I18nField(required=False),
+    }
 
 
 @receiver(signal=logentry_display, dispatch_uid="vacc_autosched_logentry_display")
