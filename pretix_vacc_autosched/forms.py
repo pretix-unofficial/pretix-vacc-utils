@@ -9,7 +9,6 @@ from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
 from pretix.base.models import Order
 from .models import ItemConfig, LinkedOrderPosition
-from .tasks import get_for_other_event
 
 
 def can_use_juvare_api(event):
