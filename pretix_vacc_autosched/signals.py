@@ -105,6 +105,8 @@ def recv_api_event_settings_fields(sender, **kwargs):
         'vacc_autosched_mail': serializers.BooleanField(required=False),
         'vacc_autosched_subject': I18nField(required=False),
         'vacc_autosched_body': I18nField(required=False),
+        'vacc_autosched_sms': serializers.BooleanField(required=False),
+        'vacc_autosched_sms_text': I18nField(required=False),
         'vacc_autosched_self_service': serializers.BooleanField(required=False),
         'vacc_autosched_self_service_info': I18nField(required=False),
         'vacc_autosched_self_service_order_info': I18nField(required=False),
@@ -179,6 +181,18 @@ settings_hierarkey.add_default(
             "Please find additional information in your ticket attached.\n\n"
             "Best regards,\n"
             "Your {event} team"
+        )
+    ),
+    LazyI18nString,
+)
+settings_hierarkey.add_default("vacc_autosched_sms", False, bool)
+settings_hierarkey.add_default(
+    "vacc_autosched_sms_text",
+    LazyI18nString.from_gettext(
+        gettext_noop(
+            "Hello,\n\n"
+            "we scheduled your second dose for {scheduled_datetime}.\n\n"
+            "Please find additional information here: {url}.\n\n"
         )
     ),
     LazyI18nString,

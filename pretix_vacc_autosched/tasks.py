@@ -10,12 +10,13 @@ from pretix.base.email import get_email_context
 from pretix.base.i18n import language
 from pretix.base.models import Order, OrderPosition, Quota
 from pretix.base.services.locking import LockTimeoutException
-from pretix.base.services.mail import SendMailException
+from pretix.base.services.mail import SendMailException, TolerantDict
 from pretix.base.services.tasks import EventTask
 from pretix.base.signals import order_paid, order_placed
 from pretix.celery_app import app
 
 from pretix_vacc_autosched.models import LinkedOrderPosition
+from pretix_vacc_autosched.forms import can_use_juvare_api
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,7 @@ def book_second_dose(*, op, item, variation, subevent, original_event):
             require_approval=False,
             testmode=op.order.testmode,
             email=op.order.email,
+            phone=op.order.phone,
             locale=op.order.locale,
             expires=now() + timedelta(days=30),
             total=Decimal("0.00"),
@@ -240,4 +242,26 @@ def book_second_dose(*, op, item, variation, subevent, original_event):
                 )
             except SendMailException:
                 logger.exception("Order approved email could not be sent")
+    if (
+        original_event.settings.vacc_autosched_sms
+        and can_use_juvare_api(original_event)
+        and childorder.phone
+    ):
+        with language(childorder.locale, original_event.settings.region):
+            from pretix_juvare_notify.tasks import juvare_send_text
+
+            template = original_event.settings.vacc_autosched_sms_text
+            context = get_email_context(event=childorder.event, order=childorder)
+            context["scheduled_datetime"] = date_format(
+                subevent.date_from.astimezone(original_event.timezone),
+                "SHORT_DATETIME_FORMAT",
+            )
+            message = str(template).format_map(TolerantDict(context))
+            juvare_send_text.apply_async(
+                kwargs={
+                    "text": message,
+                    "to": childorder.phone,
+                    "event": original_event.pk,
+                }
+            )
     return childorder
