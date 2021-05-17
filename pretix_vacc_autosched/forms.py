@@ -12,6 +12,20 @@ from .models import ItemConfig, LinkedOrderPosition
 from .tasks import get_for_other_event
 
 
+def can_use_juvare_api(event):
+    try:
+        import pretix_juvare_notify
+    except ImportError:
+        return False
+    # Is the plugin active
+    if "pretix_juvare_notify" not in event.plugins:
+        return False
+    # Is the plugin configured
+    if not event.settings.juvare_client_secret:
+        return False
+    return True
+
+
 class ItemConfigForm(forms.ModelForm):
     class Meta:
         model = ItemConfig
@@ -90,6 +104,16 @@ class AutoschedSettingsForm(SettingsForm):
         widget=I18nTextarea,
     )
 
+    vacc_autosched_sms = forms.BooleanField(
+        label=_("Send an SMS if second dose has been scheduled"),
+        help_text=_("Uses the Juvare Notify API"),
+        required=False,
+    )
+    vacc_autosched_sms_text = I18nFormField(
+        label=_("SMS Body"),
+        required=True,
+        widget=I18nTextarea,
+    )
     vacc_autosched_self_service = forms.BooleanField(
         label=_("Self-service for second doses"),
         help_text=_(
@@ -124,6 +148,9 @@ class AutoschedSettingsForm(SettingsForm):
         self._set_field_placeholders(
             "vacc_autosched_body", ["event"], ["{scheduled_datetime}"]
         )
+        if not can_use_juvare_api(self.event):
+            self.fields.pop("vacc_autosched_sms")
+            self.fields.pop("vacc_autosched_sms_text")
 
     def _set_field_placeholders(self, fn, base_parameters, extras=[]):
         phs = [
