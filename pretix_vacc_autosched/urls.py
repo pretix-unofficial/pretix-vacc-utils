@@ -1,7 +1,7 @@
 from django.conf.urls import url
 
-from .views import SelfServiceBookingView, SelfServiceIndexView, SettingsView
 from . import api
+from .views import SelfServiceBookingView, SelfServiceIndexView, SettingsView
 
 urlpatterns = [
     url(
@@ -9,9 +9,11 @@ urlpatterns = [
         SettingsView.as_view(),
         name="settings",
     ),
-    url(r'^api/v1/organizers/(?P<organizer>[^/]+)/events/(?P<event>[^/]+)/items/(?P<item>[^/]+)/vacc_autosched/$',
+    url(
+        r"^api/v1/organizers/(?P<organizer>[^/]+)/events/(?P<event>[^/]+)/items/(?P<item>[^/]+)/vacc_autosched/$",
         api.ItemView.as_view(),
-        name="api.item"),
+        name="api.item",
+    ),
 ]
 
 event_patterns = [

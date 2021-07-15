@@ -5,16 +5,16 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_noop, ugettext_lazy as _
 from i18nfield.rest_framework import I18nField
 from i18nfield.strings import LazyI18nString
-from rest_framework import serializers
-
 from pretix.base.settings import settings_hierarkey
 from pretix.base.signals import (
+    api_event_settings_fields,
     checkin_created,
     event_copy_data,
     item_copy_data,
-    logentry_display, api_event_settings_fields,
+    logentry_display,
 )
 from pretix.control.signals import item_forms, nav_event_settings
+from rest_framework import serializers
 
 from pretix_vacc_autosched.tasks import schedule_second_dose
 
@@ -98,18 +98,22 @@ def checkin_created_receiver(sender, checkin, **kwargs):
         )
     )
 
-@receiver(signal=api_event_settings_fields, dispatch_uid="vacc_autosched_api_event_settings_fields")
+
+@receiver(
+    signal=api_event_settings_fields,
+    dispatch_uid="vacc_autosched_api_event_settings_fields",
+)
 def recv_api_event_settings_fields(sender, **kwargs):
     return {
-        'vacc_autosched_checkin': serializers.BooleanField(required=False),
-        'vacc_autosched_mail': serializers.BooleanField(required=False),
-        'vacc_autosched_subject': I18nField(required=False),
-        'vacc_autosched_body': I18nField(required=False),
-        'vacc_autosched_sms': serializers.BooleanField(required=False),
-        'vacc_autosched_sms_text': I18nField(required=False),
-        'vacc_autosched_self_service': serializers.BooleanField(required=False),
-        'vacc_autosched_self_service_info': I18nField(required=False),
-        'vacc_autosched_self_service_order_info': I18nField(required=False),
+        "vacc_autosched_checkin": serializers.BooleanField(required=False),
+        "vacc_autosched_mail": serializers.BooleanField(required=False),
+        "vacc_autosched_subject": I18nField(required=False),
+        "vacc_autosched_body": I18nField(required=False),
+        "vacc_autosched_sms": serializers.BooleanField(required=False),
+        "vacc_autosched_sms_text": I18nField(required=False),
+        "vacc_autosched_self_service": serializers.BooleanField(required=False),
+        "vacc_autosched_self_service_info": I18nField(required=False),
+        "vacc_autosched_self_service_order_info": I18nField(required=False),
     }
 
 

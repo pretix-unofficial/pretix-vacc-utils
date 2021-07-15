@@ -15,8 +15,8 @@ from pretix.base.services.tasks import EventTask
 from pretix.base.signals import order_paid, order_placed
 from pretix.celery_app import app
 
-from pretix_vacc_autosched.models import LinkedOrderPosition
 from pretix_vacc_autosched.forms import can_use_juvare_api
+from pretix_vacc_autosched.models import LinkedOrderPosition
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,9 @@ def schedule_second_dose(self, event, op):
         "item", "variation", "subevent", "order"
     ).get(pk=op)
 
-    if LinkedOrderPosition.objects.filter(Q(base_position=op) |Q(child_position=op)).exists():
+    if LinkedOrderPosition.objects.filter(
+        Q(base_position=op) | Q(child_position=op)
+    ).exists():
         return
 
     itemconf = op.item.vacc_autosched_config
@@ -88,7 +90,9 @@ def schedule_second_dose(self, event, op):
     )
 
     target_event = itemconf.event or event
-    target_item, target_var = get_for_other_event(op, target_event, itemconf.second_item)
+    target_item, target_var = get_for_other_event(
+        op, target_event, itemconf.second_item
+    )
     if target_item is None:
         return
 

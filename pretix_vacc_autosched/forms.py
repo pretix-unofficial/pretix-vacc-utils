@@ -4,16 +4,16 @@ from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
 from django_scopes.forms import SafeModelChoiceField
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
-
 from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
-from pretix.base.models import Order, Item
+from pretix.base.models import Item, Order
+
 from .models import ItemConfig, LinkedOrderPosition
 
 
 def can_use_juvare_api(event):
     try:
-        import pretix_juvare_notify
+        import pretix_juvare_notify  # noqa
     except ImportError:
         return False
     # Is the plugin active
@@ -33,11 +33,12 @@ class ItemConfigForm(forms.ModelForm):
     class Meta:
         model = ItemConfig
         fields = ["days", "max_days", "event", "second_item"]
-        widgets = {
-            'second_item': ForeignKeyRawIdWidget
-        }
+        widgets = {"second_item": ForeignKeyRawIdWidget}
         exclude = []
-        field_classes = {"event": SafeModelChoiceField, "second_item": SafeModelChoiceField}
+        field_classes = {
+            "event": SafeModelChoiceField,
+            "second_item": SafeModelChoiceField,
+        }
 
     def __init__(self, *args, **kwargs):
         self.event = kwargs.pop("event")
@@ -45,7 +46,9 @@ class ItemConfigForm(forms.ModelForm):
         self.fields["event"].queryset = self.event.organizer.events.filter(
             has_subevents=True
         ).order_by("date_from")
-        self.fields['second_item'].queryset = Item.objects.filter(event__organizer=self.event.organizer)
+        self.fields["second_item"].queryset = Item.objects.filter(
+            event__organizer=self.event.organizer
+        )
         self.fields["days"].required = False
         self.fields["days"].widget.is_required = False
 
@@ -59,9 +62,11 @@ class ItemConfigForm(forms.ModelForm):
         else:
             target_event = self.event
 
-        if data.get('second_item'):
-            if data['second_item'].event != target_event:
-                raise ValidationError(_("The product ID you entered is for the wrong event."))
+        if data.get("second_item"):
+            if data["second_item"].event != target_event:
+                raise ValidationError(
+                    _("The product ID you entered is for the wrong event.")
+                )
         elif target_event != self.event:
             has_item = (
                 len(
@@ -219,7 +224,8 @@ class SecondDoseCodeForm(forms.Form):
         if lop:
             raise forms.ValidationError(
                 _(
-                    "A second appointment has already been scheduled for {datetime}. The ticket has been sent to you via email to the address used for your first booking."
+                    "A second appointment has already been scheduled for {datetime}. The ticket has been sent to "
+                    "you via email to the address used for your first booking."
                 ).format(
                     datetime=date_format(
                         lop.child_position.subevent.date_from.astimezone(
@@ -240,7 +246,9 @@ class SecondDoseOrderForm(forms.Form):
 
         self.subevents = available_subevents
         self.fields["subevent"] = forms.ModelChoiceField(
-            queryset=event.subevents.filter(pk__in=[e.pk for e in available_subevents]).order_by("date_from"),
+            queryset=event.subevents.filter(
+                pk__in=[e.pk for e in available_subevents]
+            ).order_by("date_from"),
             label=_("Date"),
             widget=forms.RadioSelect,
         )

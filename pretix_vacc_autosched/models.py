@@ -33,7 +33,9 @@ class ItemConfig(models.Model):
         null=True,
         blank=True,
         verbose_name=_("Scheduling of second dose: Product name for second dose"),
-        help_text=_("If empty, a product with the same name as the current one will be chosen"),
+        help_text=_(
+            "If empty, a product with the same name as the current one will be chosen"
+        ),
     )
 
 
