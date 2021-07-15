@@ -44,8 +44,9 @@ Authorization: Token s1p5713blkfjrfo6vhgxki7s989jrb8f29t1pq9qpknfqc9wz767s5i1me3
 Content-Type: application/json
 
 {
-  "event": "firstshot",
+  "event": "secondshot",
   "days": 21,
+  "second_item": 138,
   "max_days": null
 }
 

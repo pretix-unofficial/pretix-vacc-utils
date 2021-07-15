@@ -175,7 +175,7 @@ class SelfServiceBookingView(SelfServiceMixin, EventViewMixin, FormView):
 
         self.other_event = config.event or position.order.event
 
-        self.target_item, self.target_variation = get_for_other_event(position, self.other_event)
+        self.target_item, self.target_variation = get_for_other_event(position, self.other_event, config.second_item)
         subevents = self.other_event.subevents.filter(
             date_from__date__gte=min_date,
             date_from__date__lte=max_date,

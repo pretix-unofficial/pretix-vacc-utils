@@ -21,27 +21,31 @@ from pretix_vacc_autosched.forms import can_use_juvare_api
 logger = logging.getLogger(__name__)
 
 
-def get_for_other_event(op, event):
-    if op.order.event == event:
+def get_for_other_event(op, event, prefer_second_item):
+    if prefer_second_item:
+        target_item = prefer_second_item
+        if event != target_item.event:
+            return None, None
+    elif op.order.event == event:
         return op.item, op.variation
+    else:
+        possible_items = [
+            n
+            for n in event.items.all()
+            if (n.internal_name or str(n.name))
+            == (op.item.internal_name or str(op.item.name))
+        ]
+        if len(possible_items) != 1:
+            op.order.log_action(
+                "pretix_vacc_autosched.failed",
+                data={
+                    "reason": _("No product found"),
+                    "position": op.pk,
+                },
+            )
+            return None, None
 
-    possible_items = [
-        n
-        for n in event.items.all()
-        if (n.internal_name or str(n.name))
-        == (op.item.internal_name or str(op.item.name))
-    ]
-    if len(possible_items) != 1:
-        op.order.log_action(
-            "pretix_vacc_autosched.failed",
-            data={
-                "reason": _("No product found"),
-                "position": op.pk,
-            },
-        )
-        return None, None
-
-    target_item = possible_items[0]
+        target_item = possible_items[0]
 
     if op.variation or target_item.variations.exists():
         possible_variations = [
@@ -84,7 +88,7 @@ def schedule_second_dose(self, event, op):
     )
 
     target_event = itemconf.event or event
-    target_item, target_var = get_for_other_event(op, target_event)
+    target_item, target_var = get_for_other_event(op, target_event, itemconf.second_item)
     if target_item is None:
         return
 

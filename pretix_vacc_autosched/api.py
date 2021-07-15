@@ -4,7 +4,7 @@ from rest_framework import views, serializers, status
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
-from pretix.base.models import Event
+from pretix.base.models import Event, Item
 
 
 class ItemConfigSerializer(serializers.ModelSerializer):
@@ -15,12 +15,20 @@ class ItemConfigSerializer(serializers.ModelSerializer):
         fields = [
             "event",
             "days",
+            "second_item",
             "max_days"
         ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['event'].queryset = self.instance.item.event.organizer.events.filter(has_subevents=True)
+        self.fields['second_item'].queryset = Item.objects.filter(event__organizer=self.instance.item.event.organizer)
+
+    def validate(self, data):
+        if data.get('second_item') and data.get('event'):
+            if data.get('event') != data.get('second_item').event:
+                raise serializers.ValidationError("Item does not exist in event")
+        return data
 
 
 class ItemView(views.APIView):

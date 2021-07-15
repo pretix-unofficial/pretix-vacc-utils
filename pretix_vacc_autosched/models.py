@@ -27,6 +27,14 @@ class ItemConfig(models.Model):
         verbose_name=_("Scheduling of second dose: Event series to choose date from"),
         help_text=_("If empty, the current series will be used"),
     )
+    second_item = models.ForeignKey(
+        "pretixbase.Item",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name=_("Scheduling of second dose: Product name for second dose"),
+        help_text=_("If empty, a product with the same name as the current one will be chosen"),
+    )
 
 
 class LinkedOrderPosition(models.Model):

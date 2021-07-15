@@ -7,7 +7,7 @@ from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
 
 from pretix.base.email import get_available_placeholders
 from pretix.base.forms import PlaceholderValidator, SettingsForm
-from pretix.base.models import Order
+from pretix.base.models import Order, Item
 from .models import ItemConfig, LinkedOrderPosition
 
 
@@ -25,12 +25,19 @@ def can_use_juvare_api(event):
     return True
 
 
+class ForeignKeyRawIdWidget(forms.TextInput):
+    pass
+
+
 class ItemConfigForm(forms.ModelForm):
     class Meta:
         model = ItemConfig
-        fields = ["days", "max_days", "event"]
+        fields = ["days", "max_days", "event", "second_item"]
+        widgets = {
+            'second_item': ForeignKeyRawIdWidget
+        }
         exclude = []
-        field_classes = {"event": SafeModelChoiceField}
+        field_classes = {"event": SafeModelChoiceField, "second_item": SafeModelChoiceField}
 
     def __init__(self, *args, **kwargs):
         self.event = kwargs.pop("event")
@@ -38,6 +45,7 @@ class ItemConfigForm(forms.ModelForm):
         self.fields["event"].queryset = self.event.organizer.events.filter(
             has_subevents=True
         ).order_by("date_from")
+        self.fields['second_item'].queryset = Item.objects.filter(event__organizer=self.event.organizer)
         self.fields["days"].required = False
         self.fields["days"].widget.is_required = False
 
@@ -48,6 +56,13 @@ class ItemConfigForm(forms.ModelForm):
                 raise ValidationError("This may only be used on event series.")
         if data.get("event"):
             target_event = data["event"]
+        else:
+            target_event = self.event
+
+        if data.get('second_item'):
+            if data['second_item'].event != target_event:
+                raise ValidationError(_("The product ID you entered is for the wrong event."))
+        elif target_event != self.event:
             has_item = (
                 len(
                     [
