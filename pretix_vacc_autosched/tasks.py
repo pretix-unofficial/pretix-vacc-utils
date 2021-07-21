@@ -22,11 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 def get_for_other_event(op, event, prefer_second_item):
+    logger.info(f"SECOND DOSE: Looking up item for event {event.slug}, prefer item {prefer_second_item}")
     if prefer_second_item:
         target_item = prefer_second_item
         if event != target_item.event:
+            logger.info(f"SECOND DOSE: Abort because preferred item is for event {target_item.event.slug}")
             return None, None
     elif op.order.event == event:
+        logger.info(f"SECOND DOSE: Choose same item because of same event")
         return op.item, op.variation
     else:
         possible_items = [
@@ -43,6 +46,7 @@ def get_for_other_event(op, event, prefer_second_item):
                     "position": op.pk,
                 },
             )
+            logger.info(f"SECOND DOSE: Possible items by name: {repr([n.pk for n in possible_items])}")
             return None, None
 
         target_item = possible_items[0]
@@ -54,6 +58,7 @@ def get_for_other_event(op, event, prefer_second_item):
             if str(n.value) == (str(op.variation.value) if op.variation else None)
         ]
         if len(possible_variations) != 1:
+            logger.info(f"SECOND DOSE: Possible variations by name: {repr([n.pk for n in possible_variations])}")
             op.order.log_action(
                 "pretix_vacc_autosched.failed",
                 data={
@@ -74,9 +79,12 @@ def schedule_second_dose(self, event, op):
         "item", "variation", "subevent", "order"
     ).get(pk=op)
 
+    logger.info(f"SECOND DOSE: Scheduling started for {op.order.code}")
+
     if LinkedOrderPosition.objects.filter(
         Q(base_position=op) | Q(child_position=op)
     ).exists():
+        logger.info("SECOND DOSE: Scheduling aborted, seond dose already booked")
         return
 
     itemconf = op.item.vacc_autosched_config
@@ -93,6 +101,9 @@ def schedule_second_dose(self, event, op):
     target_item, target_var = get_for_other_event(
         op, target_event, itemconf.second_item
     )
+
+    logger.info(f"SECOND DOSE: date after {earliest_date}, target_event {target_event.slug}, target_item {target_item.pk}, target_variation {target_var.pk if target_var else None}")
+
     if target_item is None:
         return
 
@@ -105,6 +116,7 @@ def schedule_second_dose(self, event, op):
             .first()
         )
         if not subevent:
+            logger.info(f"SECOND DOSE: no time slot found after {earliest_date}")
             op.order.log_action(
                 "pretix_vacc_autosched.failed",
                 data={
@@ -130,6 +142,7 @@ def schedule_second_dose(self, event, op):
         except LockTimeoutException:
             self.retry()
 
+    logger.info(f"SECOND DOSE: no available time slot found after 250 tries")
     op.order.log_action(
         "pretix_vacc_autosched.failed",
         data={
@@ -145,6 +158,7 @@ def book_second_dose(*, op, item, variation, subevent, original_event):
     with event.lock(), transaction.atomic():
         avcode, avnr = item.check_quotas(subevent=subevent, fail_on_no_quotas=True)
         if avcode != Quota.AVAILABILITY_OK:
+            logger.info(f"SECOND DOSE: cannot use slot {subevent.pk}, sold out")
             # sold out, look for next one
             return
 
@@ -272,4 +286,5 @@ def book_second_dose(*, op, item, variation, subevent, original_event):
                     "event": original_event.pk,
                 }
             )
+    logger.info(f"SECOND DOSE: done, created order {childorder.code}")
     return childorder
