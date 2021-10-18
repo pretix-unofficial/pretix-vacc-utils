@@ -240,6 +240,7 @@ def book_second_dose(*, op, item, variation, subevent, original_event):
                     childansw.options.add(*childopts)
 
         LinkedOrderPosition.objects.create(base_position=op, child_position=childpos)
+        childorder.create_transactions(is_new=True)
     order_placed.send(event, order=childorder)
     order_paid.send(event, order=childorder)
 
