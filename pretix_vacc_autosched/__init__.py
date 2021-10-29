@@ -5,7 +5,7 @@ try:
 except ImportError:
     raise RuntimeError("Please use pretix 2.7 or above to run this plugin!")
 
-__version__ = "2.4.1"
+__version__ = "2.5.0"
 
 
 class PluginApp(PluginConfig):
@@ -19,7 +19,7 @@ class PluginApp(PluginConfig):
         visible = True
         version = __version__
         category = "FEATURE"
-        compatibility = "pretix>=3.15.0"
+        compatibility = "pretix>=4.4.0"
 
     def ready(self):
         from . import signals  # NOQA
