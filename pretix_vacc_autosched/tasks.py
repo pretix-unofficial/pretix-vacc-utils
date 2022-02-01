@@ -135,7 +135,7 @@ def schedule_second_dose(self, event, op):
                 original_event=event,
             )
             if not order:
-                earliest_date += timedelta(minutes=1)
+                earliest_date = subevent.date_from + timedelta(minutes=1)
                 continue
             else:
                 return
@@ -148,6 +148,7 @@ def schedule_second_dose(self, event, op):
         data={
             "reason": _("No available time slot found"),
             "position": op.pk,
+            "last_looked_at": subevent.pk,
         },
     )
     return
