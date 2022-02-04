@@ -102,7 +102,7 @@ def schedule_second_dose(self, event, op):
         op, target_event, itemconf.second_item
     )
 
-    logger.info(f"SECOND DOSE: date after {earliest_date}, target_event {target_event.slug}, target_item {target_item.pk}, target_variation {target_var.pk if target_var else None}")
+    logger.info(f"SECOND DOSE: date after {earliest_date}, target_event {target_event.slug}, target_item {target_item.pk if target_item else None}, target_variation {target_var.pk if target_var else None}")
 
     if target_item is None:
         return
