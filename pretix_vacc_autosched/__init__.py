@@ -18,6 +18,7 @@ class PluginApp(PluginConfig):
         description = gettext_lazy("Automatic scheduling of second dose")
         visible = True
         version = __version__
+        experimental = True
         category = "FEATURE"
         compatibility = "pretix>=4.4.0"
 
