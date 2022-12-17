@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils.formats import date_format
 from django.utils.timezone import make_aware, now
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pretix.base.email import get_email_context
 from pretix.base.i18n import language
 from pretix.base.models import Order, OrderPosition, Quota

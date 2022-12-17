@@ -2,7 +2,7 @@ import copy
 from django.dispatch import receiver
 from django.urls import resolve, reverse
 from django.utils.safestring import mark_safe
-from django.utils.translation import gettext_noop, ugettext_lazy as _
+from django.utils.translation import gettext_noop, gettext_lazy as _
 from i18nfield.rest_framework import I18nField
 from i18nfield.strings import LazyI18nString
 from pretix.base.settings import settings_hierarkey
