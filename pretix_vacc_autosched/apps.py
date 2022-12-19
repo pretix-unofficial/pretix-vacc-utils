@@ -8,6 +8,7 @@ except ImportError:
 
 
 class PluginApp(PluginConfig):
+    default = True
     name = "pretix_vacc_autosched"
     verbose_name = "Vaccination: Automatic scheduling of second dose"
 
