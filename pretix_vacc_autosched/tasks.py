@@ -9,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from pretix.base.email import get_email_context
 from pretix.base.i18n import language
 from pretix.base.models import Order, OrderPosition, Quota
-from pretix.base.services.locking import LockTimeoutException
+from pretix.base.services.locking import LockTimeoutException, lock_objects
 from pretix.base.services.mail import SendMailException, TolerantDict
 from pretix.base.services.tasks import EventTask
 from pretix.base.signals import order_paid, order_placed
@@ -156,7 +156,8 @@ def schedule_second_dose(self, event, op):
 
 def book_second_dose(*, op, item, variation, subevent, original_event):
     event = item.event
-    with event.lock(), transaction.atomic():
+    with transaction.atomic():
+        lock_objects([event])
         avcode, avnr = item.check_quotas(subevent=subevent, fail_on_no_quotas=True)
         if avcode != Quota.AVAILABILITY_OK:
             logger.info(f"SECOND DOSE: cannot use slot {subevent.pk}, sold out")
